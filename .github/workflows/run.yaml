@@ -7,3 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Hello!"
+      - uses: actions/checkout@v2
+
+      - name: Install cloc
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - run: sudo npm install cloc -g
