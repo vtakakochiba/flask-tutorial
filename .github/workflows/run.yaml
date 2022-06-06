@@ -5,12 +5,25 @@ on:
 jobs:
   check-bats-version:
     runs-on: ubuntu-latest
+    env:
+      WORKPLACE: ${{github.workspace}}
+
     steps:
       - run: echo "Hello!"
+      # checkout → $GITHUB_WORKSPACE下のリポジトリがチェックアウトされ、ワークフローがリポジトリにアクセスできるようになる。
       - uses: actions/checkout@v2
 
       - name: Install cloc
+      # setup-node → node-versionで指定したバージョンのNode.js distributionのダウンロードおよびキャッシュし、それをPATHに追加する。
         uses: actions/setup-node@v2
         with:
           node-version: '14'
+      # npm（Node Package Manager）は、Node.js のパッケージ（Package）を管理するツール。
       - run: sudo npm install cloc -g
+
+      - name: Count Lines of Code (cloc)
+        run: |
+             cloc $WORKPLACE/src --exclude-dir=node_modules --csv --out="get_list_loc.csv"
+             cat get_list_loc.csv           
+             cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
+             cat loc_sum
