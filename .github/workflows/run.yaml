@@ -49,4 +49,3 @@ jobs:
                  sum=$v
              done <loc_sum
              echo "$sum"
-             cat sum
