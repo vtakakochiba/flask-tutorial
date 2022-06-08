@@ -25,7 +25,7 @@ jobs:
         run:
              cloc $WORKPLACE/src --exclude-dir=node_modules --csv --out="get_list_loc.csv"
              cat get_list_loc.csv
-             cut -d ',' -f 5 get_list_loc.csv
-             cat get_list_loc.csv
+             #cut -d ',' -f 5 get_list_loc.csv
+             #cat get_list_loc.csv
              #cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
              #cat loc_sum
