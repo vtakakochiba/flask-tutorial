@@ -24,3 +24,4 @@ jobs:
       - name: Count Lines of Code (cloc)
         run:
              cloc $WORKPLACE/src --exclude-dir=node_modules --csv --out="get_list_loc.csv"
+             cat get_list_loc.csv
