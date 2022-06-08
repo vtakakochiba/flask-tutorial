@@ -29,3 +29,7 @@ jobs:
              #cat get_list_loc.csv
              #cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
              #cat loc_sum
+
+       - name: read get_list_loc
+        run:
+             cat get_list_loc.csv
