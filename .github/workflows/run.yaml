@@ -42,7 +42,7 @@ jobs:
         run:
              echo "`date '+%Y/%-m/%-d'`"
 
-      - name: Loc
+      - name: Loc_sum
         run: |
              while read v
              do
