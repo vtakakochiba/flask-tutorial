@@ -27,3 +27,13 @@ jobs:
              cat get_list_loc.csv
              cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
              cat loc_sum
+
+      - name: Date & Loc
+        run: |
+             while read v
+             do
+                 sum=$v
+             done <loc_sum
+             echo "`date '+%Y/%-m/%-d'` $sum" >date_and_sum
+             echo "" >>date_and_sum
+             cat date_and_sum
