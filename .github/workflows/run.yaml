@@ -37,3 +37,7 @@ jobs:
              echo "`date '+%Y/%-m/%-d'` $sum" >date_and_sum
              echo "" >>date_and_sum
              cat date_and_sum
+
+      - name: Date
+        run:
+             echo "date '+%Y/%-m/%-d'"
