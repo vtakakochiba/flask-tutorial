@@ -6,7 +6,7 @@ public class SamplePoi {
       os = new FileOutputStream("TestExcelFile.xlsx");
       XSSFWorkbook workbook = new XSSFWorkbook();
       workbook.createSheet();
-      workbook.write(os);//ここでエクセルファイルを作成しています。
+      workbook.write(os);
     } catch (IOException e) {
       e.printStackTrace();
     } finally {
