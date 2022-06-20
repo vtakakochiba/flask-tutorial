@@ -8,6 +8,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ github.token }}
       GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
+      PER_PAGE: 100
       NO_LINK: nolink
 
 
@@ -32,7 +33,6 @@ jobs:
     - name: Get last page
       run: | 
         python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
-        
         if [ `cat get_page` = $NO_LINK ]; then
             echo There is only 1 page.
             echo 1 >last_page
@@ -42,4 +42,3 @@ jobs:
             cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
             cat last_page
         fi
-     
