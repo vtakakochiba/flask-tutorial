@@ -6,7 +6,10 @@ jobs:
   check-bats-version:
     runs-on: ubuntu-latest
     env:
-      WORKPLACE: ${{github.workspace}}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
+      NO_LINK: nolink
+
 
     steps:
     - name: Clone
@@ -14,13 +17,29 @@ jobs:
       with:
         fetch-depth: 0
 
+#Pythonをインストールする
     - name: Setup Python
       uses: actions/setup-python@v2
       with:
         python-version: '3.x'
         architecture: 'x64'
 
+#requirements.txtて設定しているライブラリをインストールする
     - name: Install dependencies
       run: pip install -r requirements.txt
       working-directory: ./.github/workflows
 
+    - name: Get last page
+      run: | 
+        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
+        
+        if [ `cat get_page` = $NO_LINK ]; then
+            echo There is only 1 page.
+            echo 1 >last_page
+            cat last_page
+        else
+            echo The last page is ...
+            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
+            cat last_page
+        fi
+     
