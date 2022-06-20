@@ -1,7 +1,7 @@
 name: learn-github-actions
 on: 
   push:
-    branches: [ Studying-Actions ]
+#    branches: [ Studying-Actions ]
 jobs:
   check-bats-version:
     runs-on: ubuntu-latest
