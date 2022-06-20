@@ -1,0 +1,148 @@
+name: Increase & Decrease of Code
+
+on:
+  #schedule:
+    #- cron: '50 14 * * *'   #稼働確認後にコメントを外し日時実行させる
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      WORKPLACE: ${{github.workspace}}
+      PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
+      PULSE_BASEURL: https://pulse-metrics.com
+      PULSE_API: /api/v1/projects/xx/repositories/xx
+      
+    steps:
+      - uses: actions/checkout@v1      #v2は最新のコミットのみ取得可能。過去のコミット履歴が取得不可能な為v1にすること
+        
+      - name: Install cloc
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - run: sudo npm install cloc -g
+  
+        
+      - name: Get Commit Log
+        run: |
+             #Get dates
+             t=1
+             y=2
+             until=1
+             days_ago=" days ago"
+             day1="$t$days_ago"               
+             day2="$y$days_ago"                 
+             today="`date '+%Y/%m/%d'`"
+             echo "today: $today"
+             
+             git log --merges --since="$day1" --until="$today" -- src >commithash_today             
+             echo "Today's Commit"
+             cat commithash_today
+
+             git log --merges --since="$day2" --until="$day1" -- src >commithash_previousday         
+             echo "Yesterday's Commit"
+             cat commithash_previousday
+                      
+             while [ ! -s commithash_previousday ] && [ "$until" -le "365" ]; do   #"commithash_previousdayが空"かつ"前回のコミットが365日以内"
+               t=$(( t + 1 ))
+               y=$(( y + 1 ))
+               until=$(( until + 1 ))
+                 
+               day1="$t$days_ago"
+               echo "$day1"
+               d1=`date '+%Y/%m/%d' --date="day1"`
+                 
+               day2="$y$days_ago"
+               echo "$day2"
+               d2=`date '+%Y/%m/%d' --date="day2"`        
+                 
+               git log --merges --since="$day2" --until="$day1" -- src >commithash_previousday              
+               echo "Previous Commit"
+               echo "$t$days_ago"
+               cat commithash_previousday
+               echo ""
+             done
+
+             
+      - name: Count Differences (cloc)
+        run: |
+             if [ -s commithash_today ] && [ -s commithash_previousday ]; then
+               ht=`cat commithash_today | grep "commit" | sed 's/commit //g' | sed -ne 1p`
+               echo "Today's commithash:$ht"
+               hp=`cat commithash_previousday | grep "commit" | sed 's/commit //g' | sed -ne 1p`
+               echo "Previous commithash:$hp"           
+               cloc --diff $hp $ht --match-d=src >cloc_result
+               cat cloc_result
+               sed -ne '/SUM:/,$p' cloc_result >sum_values
+               cat sum_values
+             else
+               echo "There is not commit hashs.(today or previous days)"
+               echo "ioc:0"
+               echo "doc:0"
+             fi
+
+
+      - name: Extract metrics
+        run: |
+             if [ ! -s sum_values ]; then
+               echo 0 >ioc_value
+               echo 0 >doc_value
+               echo if
+             else
+               cat sum_values | sed -ne 3,5p | awk '{print $5}' >result_values
+               cat result_values | sed -ne 1p >modified
+               cat result_values | sed -ne 2p >added
+               cat result_values | sed -ne 3p >removed             
+               m=`cat modified`
+               a=`cat added`
+               r=`cat removed`
+               echo "modified:$m"
+               echo "added:$a"
+               echo "removed:$r" 
+               echo $(( m+a )) >ioc_value               
+               echo $r >doc_value
+               echo else
+             fi             
+             echo "ioc:"
+             cat ioc_value
+             echo "doc:"
+             cat doc_value
+             
+             
+      - name: Date & Value
+        run: |
+             echo Increase of Code
+             while read v
+             do
+               sum=$v
+             done <ioc_value
+             echo "`date '+%Y/%-m/%-d'` $sum" >date_and_ioc
+             echo "" >>date_and_ioc
+             cat date_and_ioc
+        
+             echo Decrease of Code
+             while read v
+             do
+               sum=$v
+             done <doc_value
+             echo "`date '+%Y/%-m/%-d'` $sum" >date_and_doc
+             echo "" >>date_and_doc
+             cat date_and_doc
+    
+      - name: Plot
+        run: |
+             echo Increase of Code
+             while read d v
+             do
+                curl -X POST $PULSE_BASEURL$PULSE_API/increase_of_code_snapshots/upsert?api_key=$PULSE_API_KEY -d "increase_of_code_snapshot[target_date]=${d}&increase_of_code_snapshot[value]=${v}"
+             done <date_and_ioc
+           
+             echo Decrease of Code
+             while read d v
+             do
+                curl -X POST $PULSE_BASEURL$PULSE_API/decrease_of_code_snapshots/upsert?api_key=$PULSE_API_KEY -d "decrease_of_code_snapshot[target_date]=${d}&decrease_of_code_snapshot[value]=${v}"
+             done <date_and_doc
+
+
+

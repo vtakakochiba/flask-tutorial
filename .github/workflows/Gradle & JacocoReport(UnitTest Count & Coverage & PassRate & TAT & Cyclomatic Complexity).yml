@@ -1,0 +1,194 @@
+name: Gradle & JacocoReport(UnitTest Count & Coverage & PassRate & TAT & Cyclomatic Complexity)
+
+on:
+  schedule:
+    - cron: '50 14 * * *'
+  workflow_dispatch:
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: xxxxxx
+          POSTGRES_PASSWORD: xxxxxx
+        ports:
+           - 5432:5432
+      
+    env:
+      TEST_RESULT: ./build/reports/tests/test
+      JACOCO_TEST_RESULT: ./build/reports/jacoco/test/html
+      PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
+      PULSE_BASEURL: https://pulse-metrics.com
+      PULSE_API: /api/v1/projects/xx/repositories/xx
+
+    steps:
+    - name: Clone
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        check-latest: true
+        
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-northeast-1
+        
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        architecture: 'x64'
+        
+    - name: Grant execute permission for gradlew
+      run: 
+        chmod +x gradlew
+        
+    - name: Run gradle build
+      run: 
+        ./gradlew clean quarkusBuild
+        
+    - name: Run gradle test
+      run: 
+        ./gradlew test jacocoTestReport
+    
+    #- name: Upload unit test reports
+      #uses: actions/upload-artifact@v2
+      #with:
+        #name: unit-test-report
+        #path: build/reports/tests/test
+        
+    #- name: Upload unit test coverage reports
+      #uses: actions/upload-artifact@v2
+      #with:
+        #name: unit-test-coverage-report
+        #path: build/reports/jacoco/test/html
+    
+    - name: Extract metrics
+      run: |
+        echo UnitTest Count
+        cat $TEST_RESULT/index.html | sed -ne '/id="tests"/,/<\/div>/p' >TestSummary_tests
+        cat TestSummary_tests
+        cat TestSummary_tests | sed -n 2p | sed -e 's/<[^>]*>//g' >tests_value
+        cat tests_value
+        
+        echo UnitTest Coverage
+        cat $JACOCO_TEST_RESULT/index.html | grep -o '<tfoot>.*</tfoot>' | grep -o '<td>.*</td>' >total_value
+        cat total_value
+        cat total_value | sed 's/<\/td>/\n/g' | sed -e 's/<[^>]*>//g' | sed -n 3p | sed 's/%//g' >coverage_value
+        cat coverage_value
+        
+        echo Cyclomatic Complexity
+        #cat total_value | sed 's/<\/td>/\n/g' | sed -e 's/<[^>]*>//g' | sed -n 7p | sed 's/,//g' >Cxty_value
+        #cat Cxty_value
+        
+        echo UnitTest PassRate
+        cat $TEST_RESULT/index.html | sed -ne '/id="successRate"/,/<\/div>/p' >TestSummary_successful
+        cat TestSummary_successful
+        cat TestSummary_successful | sed -e 's/<[^>]*>//g' | sed -n 2p | sed 's/%//g' >successful_value
+        cat successful_value
+        
+        echo UnitTest TAT
+        cat $TEST_RESULT/index.html | sed -ne '/id="duration"/,/<\/div>/p' >TestSummary_duration
+        cat TestSummary_duration
+        cat TestSummary_duration | sed -e 's/<[^>]*>//g' | sed -n 2p | sed 's/s//g' >duration_value
+        cat duration_value
+      
+    - name: Date & Value
+      run: |
+        echo UnitTest Count
+        while read v
+        do
+            sum=$v
+        done <tests_value
+        echo "`date '+%Y/%-m/%-d'` $sum" >date_and_UnitTestCount
+        echo "" >>date_and_UnitTestCount
+        cat date_and_UnitTestCount
+        
+        echo UnitTest Coverage
+        while read v
+        do
+            sum=$v
+        done <coverage_value
+        echo "`date '+%Y/%-m/%-d'` $sum" >date_and_UnitTestCoverage
+        echo "" >>date_and_UnitTestCoverage
+        cat date_and_UnitTestCoverage
+        
+        #echo Cyclomatic Complexity
+        #while read v
+        #do
+            #sum=$v
+        #done <Cxty_value
+        #echo "`date '+%Y/%-m/%-d'` $sum" >date_and_CyclomaticComplexity
+        #echo "" >>date_and_CyclomaticComplexity
+        #cat date_and_CyclomaticComplexity
+        
+        echo UnitTest PassRate
+        while read v
+        do
+            sum=$v
+        done <successful_value
+        echo "`date '+%Y/%-m/%-d'` $sum" >date_and_UnitTestPassRate
+        echo "" >>date_and_UnitTestPassRate
+        cat date_and_UnitTestPassRate
+        
+        echo UnitTest TAT
+        m=60
+        while read v
+        do
+            sum=`echo "scale=3; $v / $m" | bc | awk '{printf "%.3f\n", $0}'`
+        done <duration_value
+        echo $sum
+        
+        echo rounding
+        python ./.github/workflows/round_floating_number.py $sum >rounded_value
+        sum=`cat rounded_value`
+        echo $sum
+        
+        echo "`date '+%Y/%-m/%-d'` $sum" >date_and_UnitTestTAT
+        echo "" >>date_and_UnitTestTAT
+        cat date_and_UnitTestTAT
+             
+    - name: Plot
+      run: |
+        echo UnitTest Count
+        while read d v
+        do
+            curl -X POST $PULSE_BASEURL$PULSE_API/unit_test_count_snapshots/upsert?api_key=$PULSE_API_KEY -d "unit_test_count_snapshot[target_date]=${d}&unit_test_count_snapshot[value]=${v}"
+        done <date_and_UnitTestCount
+           
+        echo UnitTest Coverage
+        while read d v
+        do
+            curl -X POST $PULSE_BASEURL$PULSE_API/unit_test_coverage_snapshots/upsert?api_key=$PULSE_API_KEY -d "unit_test_coverage_snapshot[target_date]=${d}&unit_test_coverage_snapshot[value]=${v}"
+        done <date_and_UnitTestCoverage
+        
+        #echo Cyclomatic Complexity
+        #while read d v
+        #do
+            #curl -X POST $PULSE_BASEURL$PULSE_API/cyclomatic_complexity_snapshots/upsert?api_key=$PULSE_API_KEY -d "cyclomatic_complexity_snapshot[target_date]=${d}&cyclomatic_complexity_snapshot[value]=${v}"
+        #done <date_and_CyclomaticComplexity
+        
+        echo UnitTest PassRate
+        while read d v
+        do
+            curl -X POST $PULSE_BASEURL$PULSE_API/unit_test_pass_rate_snapshots/upsert?api_key=$PULSE_API_KEY -d "unit_test_pass_rate_snapshot[target_date]=${d}&unit_test_pass_rate_snapshot[value]=${v}"
+        done <date_and_UnitTestPassRate
+        
+        echo UnitTest TAT
+        while read d v
+        do
+            curl -X POST $PULSE_BASEURL$PULSE_API/unit_test_tat_snapshots/upsert?api_key=$PULSE_API_KEY -d "unit_test_tat_snapshot[target_date]=${d}&unit_test_tat_snapshot[value]=${v}"
+        done <date_and_UnitTestTAT
+          

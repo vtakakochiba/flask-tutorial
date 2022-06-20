@@ -1,0 +1,98 @@
+name: PR-Throughput & Friction
+
+on:
+  schedule:
+    - cron: '55 14 * * *'
+  workflow_dispatch:
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
+      PULSE_BASEURL: https://pulse-metrics.com
+      PULSE_API: /api/v1/projects/xx/repositories/xx
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
+      PER_PAGE: 100
+      NO_LINK: nolink
+
+    steps:
+    - name: Clone
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        
+        
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        architecture: 'x64'
+      
+      
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+      working-directory: ./.github/workflows
+      
+    
+    - name: Get last page
+      run: | 
+        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
+        
+        if [ `cat get_page` = $NO_LINK ]; then
+            echo There is only 1 page.
+            echo 1 >last_page
+            cat last_page
+        else
+            echo The last page is ...
+            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
+            cat last_page
+        fi
+        
+         
+    - name: Get List of PR by GitHub API
+      run: |
+        l=`cat last_page`
+        for i in `seq $l`
+        do
+            echo "pull-${i}"
+            curl -k -s -u :$GITHUB_TOKEN "$GITHUB_API_URL$GITHUB_API&per_page=$PER_PAGE&page=${i}" >>PR_List_all_for_tf
+        done
+        
+ 
+    - name: Extract today's Closed Pullrequest List
+      run: |
+        today=`date '+%Y-%m-%d'`
+        #today=2021-09-22
+        echo $today
+        
+        cat PR_List_all_for_tf | jq --arg TODAY $today '.[] | select(.closed_at !=null) | select(.closed_at | contains($TODAY))' | jq -s ".|= .+[]" >jq_closed_pr
+        cat jq_closed_pr
+  
+  
+    - name: Total today's Closed Pullrequest
+      run: |
+        cat jq_closed_pr | jq '.[].id' >jq_closed_pr_id
+        cat jq_closed_pr_id
+        
+        wc -l jq_closed_pr_id >jq_closed_pr_count       
+        cut -f 1 -d " " jq_closed_pr_count >todays_total
+        cat todays_total
+        
+        
+    - name: Extract Title & URL & Created Date & Closed Date
+      run: |
+        cat jq_closed_pr | jq -r '.[] | [.title,.html_url,.created_at,.closed_at] | @csv' | sed 's/ /_/g' | sed 's/　/＿/g' | sed 's/"//g' >jq_closed_pr_csv
+        cat jq_closed_pr_csv | sed 's/,/ /g' >jq_closed_pr_sp
+        echo "Title URL Created_at Closed_at"
+        cat jq_closed_pr_sp
+    
+      
+    - name: Plot
+      run: |           
+        while read t u cr cl
+        do     
+            curl -X POST $PULSE_BASEURL$PULSE_API/git_pull_requests/upsert?api_key=$PULSE_API_KEY -d "git_pull_request[name]=${t}&git_pull_request[url]=${u}&git_pull_request[opened_at]=${cr}&git_pull_request[closed_at]=${cl}"
+        done <jq_closed_pr_sp
+        
