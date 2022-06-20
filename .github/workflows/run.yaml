@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: '14'
       # npm（Node Package Manager）は、Node.js のパッケージ（Package）を管理するツール
+      # cloc（Count Lines of Code）は、は様々な言語のコード行数を計測してくれるオープンソースのツール
       - run: sudo npm install cloc -g
 
       - name: Count Lines of Code (cloc)
@@ -49,3 +50,5 @@ jobs:
                  sum=$v
              done <loc_sum
              echo "$sum"
+
+      # PULSEにPlotする
