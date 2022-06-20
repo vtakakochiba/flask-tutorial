@@ -1,0 +1,16 @@
+name: learn-github-actions
+on: 
+  push:
+    branches: [ Studying-Actions ]
+jobs:
+  check-bats-version:
+    runs-on: ubuntu-latest
+    env:
+      WORKPLACE: ${{github.workspace}}
+
+    steps:
+    - name: Clone
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
