@@ -30,29 +30,29 @@ jobs:
 #      run: pip install -r requirements.txt
 #      working-directory: ./.github/workflows
 
-    - name: Get last page
-      run: | 
+#    - name: Get last page
+#      run: | 
 #requests_last_page.pyで取得したURL 
-        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
-        echo "$GITHUB_API_URL"
-        echo "$GITHUB_API"
-        echo "$GITHUB_TOKEN"
-        if [ `cat get_page` = $NO_LINK ]; then
-            echo There is only 1 page.
-            echo 1 >last_page
-            cat last_page
-        else
-            echo The last page is ...
-            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
-            cat last_page
-        fi
+#        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
+#        echo "$GITHUB_API_URL"
+#        echo "$GITHUB_API"
+#        echo "$GITHUB_TOKEN"
+#        if [ `cat get_page` = $NO_LINK ]; then
+#            echo There is only 1 page.
+#            echo 1 >last_page
+#            cat last_page
+#        else
+#            echo The last page is ...
+#            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
+#            cat last_page
+#        fi
 
-    - name: Get List of PR by GitHub API
-      run: |
-        l=`cat last_page`
-        for i in `seq $l`
-        do
-            echo "pull-${i}"
-            curl -k -s -u :$GITHUB_TOKEN "$GITHUB_API_URL$GITHUB_API&per_page=$PER_PAGE&page=${i}" >>PR_List_all
-        done
-        cat PR_List_all
+#    - name: Get List of PR by GitHub API
+#      run: |
+#        l=`cat last_page`
+#        for i in `seq $l`
+#        do
+#            echo "pull-${i}"
+#            curl -k -s -u :$GITHUB_TOKEN "$GITHUB_API_URL$GITHUB_API&per_page=$PER_PAGE&page=${i}" >>PR_List_all
+#        done
+#        cat PR_List_all
