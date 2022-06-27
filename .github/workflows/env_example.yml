@@ -3,6 +3,8 @@ name: env_example
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ Studying-Actions ]
 
 jobs:
 
