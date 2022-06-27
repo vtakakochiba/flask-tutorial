@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
       working-directory: ./.github/workflows
-
+      
     - name: Get last page
       run: | 
 #requests_last_page.pyで取得したURL 
