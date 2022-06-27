@@ -1,4 +1,4 @@
-name: learn-github-actions
+name: learn-github-actions2
 on: 
   push:
     branches: [ Studying-Actions ]
@@ -26,9 +26,9 @@ jobs:
         architecture: 'x64'
 
 #requirements.txtて設定しているライブラリをインストールする
-    - name: Install dependencies
-      run: pip install -r requirements.txt
-      working-directory: ./.github/workflows
+#    - name: Install dependencies
+#      run: pip install -r requirements.txt
+#      working-directory: ./.github/workflows
 
     - name: Get last page
       run: | 
