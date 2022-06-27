@@ -34,9 +34,9 @@ jobs:
     - name: Get last page
       run: | 
         python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
-        echo $GITHUB_API_URL
-        echo $GITHUB_API
-        echo $GITHUB_TOKEN
+        echo "$GITHUB_API_URL"
+        echo "$GITHUB_API"
+        echo "$GITHUB_TOKEN"
 
 #        if [ `cat get_page` = $NO_LINK ]; then
 #            echo There is only 1 page.
