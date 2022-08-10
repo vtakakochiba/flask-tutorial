@@ -1,6 +1,9 @@
 name: Increase & Decrease of Code
 
 on:
+  push:
+    branches: [ Studying-Actions ]
+
   schedule:
     - cron: '30 15 * * *'
   workflow_dispatch:
