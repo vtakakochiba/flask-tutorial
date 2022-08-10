@@ -1,0 +1,189 @@
+name: PR-Open & Close Count
+
+on:
+  schedule:
+    - cron: '5 15 * * *'
+  workflow_dispatch:
+  
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
+      PULSE_BASEURL: https://pulse-metrics.com
+      PULSE_API: /api/v1/projects/xx/repositories/xx
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
+      PER_PAGE: 100
+      NO_LINK: nolink
+
+
+    steps:
+    
+    - name: Clone
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+ 
+ 
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        architecture: 'x64'    
+      
+      
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+      working-directory: ./.github/workflows
+      
+      
+    - name: Get last page
+      run: | 
+        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
+        
+        if [ `cat get_page` = $NO_LINK ]; then
+            echo "There is only 1 page."
+            echo 1 >last_page
+            cat last_page
+        else
+            echo "The last page is ..."
+            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
+            cat last_page
+        fi
+     
+     
+    - name: Get List of PR by GitHub API
+      run: |
+        l=`cat last_page`
+        for i in `seq $l`
+        do
+            echo "pull-${i}"
+            curl -k -s -u :$GITHUB_TOKEN "$GITHUB_API_URL$GITHUB_API&per_page=$PER_PAGE&page=${i}" >>PR_List_all
+        done
+        cat PR_List_all
+                    
+            
+    - name: Extract Items
+      id: tday
+      run: |
+        today=`date '+%Y-%m-%d'`    #メトリクスを取得したい日を設定する。Actionsは「UTC時間」であることに注意。
+        yesterday=`date '+%Y-%m-%d' --date '1 day ago'`   #UTC時間を日本時間に変換する為にさらに前日も取得する。
+        today_plot=`date '+%Y/%-m/%-d'`    #todayと同じ日付。Pulseプロット用にフォーマット変更。
+        echo "::set-output name=DATE::${today}"
+        echo "::set-output name=DATE_PLOT::${today_plot}"        
+        echo "date: $today"
+        echo "1 days before: $yesterday"
+        echo "date for plot: $today_plot"
+                
+        echo "RullRequest ID | URL | State | Created Date&Time | Closed Date&Time"
+        cat PR_List_all | jq -r '.[] | [.id,.html_url,.state,.created_at,.closed_at] | @csv' | sed 's/"//g' | sed 's/,/ /g' >extract_items
+        cat extract_items | grep -s -e $today -e $yesterday  2>&1 | tee items_space_pr
+
+
+    - name: Transform UTC to JST (CSV Format)
+      run: |
+            #APIで取得した時刻はUTCのため日本時間に変換する            
+            while read i1 i2 i3 i4 i5
+            do     
+                item1=${i1}
+                item2=${i2}
+                item3=${i3}
+                item4=${i4}
+                item5=${i5}           
+                                
+                if [ $item4 != null ]; then                
+                    #Format Conversion
+                    unixtime_created=`date -d $item4 +%s`
+                    item4=`date -d @$unixtime_created +"%Y-%m-%dT%H:%M:%S.000Z"`
+                
+                    python ./.github/workflows/utc_to_jst.py $item4 >created_jst
+                    item4=`cat created_jst`
+                fi
+                
+                if [ $item5 != null ]; then                
+                    #Format Conversion
+                    unixtime_closed=`date -d $item5 +%s`
+                    item5=`date -d @$unixtime_closed +"%Y-%m-%dT%H:%M:%S.000Z"`
+                
+                    python ./.github/workflows/utc_to_jst.py $item5 >closed_jst
+                    item5=`cat closed_jst`
+                fi
+                
+                echo "$item1,$item2,$item3,$item4,$item5" >>result_jst_pr
+            done <items_space_pr
+            echo "" >>result_jst_pr
+            cat result_jst_pr
+
+
+    - name: Transform CSV to JSON
+      run: |
+            echo "Insert CSV Header"
+            sed -e '1i"id","url","state","created_at","closed_at"' result_jst_pr >insert_header_pr
+            cat insert_header_pr
+            
+            echo "Transform CSV to JSON"
+            python ./.github/workflows/csv_to_json.py insert_header_pr
+            cat csv_to_json
+            
+            
+    - name: Count the number of today's Pullrequest
+      run: |                
+        today=${{ steps.tday.outputs.DATE }}
+        echo "date: $today"
+        
+        echo "Open-PullRequest"
+        cat csv_to_json | jq --arg TODAY $today '.[] | select(.created_at !=null) | select(.created_at | contains($TODAY))' | jq -s ".|= .+[]" >jq_open
+        cat jq_open
+        echo "the number of Open-PullRequests"
+        cat jq_open | jq -r '.[].id' >id_open_count
+        cat id_open_count | wc -l >open_count
+        cat open_count
+        
+        echo "Closed-PullRequest"
+        cat csv_to_json | jq --arg TODAY $today '.[] | select(.closed_at !=null) | select(.closed_at | contains($TODAY))' | jq -s ".|= .+[]" >jq_close
+        cat jq_close
+        echo "the number of Closed-PullRequests"
+        cat jq_close | jq -r '.[].id' >id_close_count
+        cat id_close_count | wc -l >close_count
+        cat close_count
+        
+        
+    - name: Date & Value
+      run: |
+        echo "Open-PullRequest"
+        v=0
+        while read v
+        do
+            sum=$v
+        done <open_count
+        echo "${{ steps.tday.outputs.DATE_PLOT }} $sum" >date_and_Open-PRCount
+        echo "" >>date_and_Open-PRCount
+        cat date_and_Open-PRCount
+        
+        echo "Closed-PullRequest"
+        v=0
+        while read v
+        do
+            sum=$v
+        done <close_count
+        echo "${{ steps.tday.outputs.DATE_PLOT }} $sum" >date_and_Close-PRCount
+        echo "" >>date_and_Close-PRCount
+        cat date_and_Close-PRCount
+    
+    
+    - name: Plot
+      run: |
+        echo "Open-PullRequest"
+        while read d v
+        do
+            curl -i -X POST $PULSE_BASEURL$PULSE_API/pr_open_count_snapshots/upsert?api_key=$PULSE_API_KEY -d "pr_open_count_snapshot[target_date]=${d}&pr_open_count_snapshot[value]=${v}"
+        done <date_and_Open-PRCount
+           
+        echo "Closed-PullRequest"
+        while read d v
+        do
+            curl -i -X POST $PULSE_BASEURL$PULSE_API/pr_close_count_snapshots/upsert?api_key=$PULSE_API_KEY -d "pr_close_count_snapshot[target_date]=${d}&pr_close_count_snapshot[value]=${v}"
+        done <date_and_Close-PRCount
+

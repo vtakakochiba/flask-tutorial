@@ -1,0 +1,168 @@
+name: PR-Throughput & Friction
+
+on:
+  schedule:
+    - cron: '10 15 * * *'
+  workflow_dispatch:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
+      PULSE_BASEURL: https://pulse-metrics.com
+      PULSE_API: /api/v1/projects/xx/repositories/xx
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
+      PER_PAGE: 100
+      NO_LINK: nolink
+
+
+    steps:
+    
+    - name: Clone
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        
+        
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+        architecture: 'x64'
+      
+      
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+      working-directory: ./.github/workflows
+      
+    
+    - name: Get last page
+      run: | 
+        python ./.github/workflows/requests_last_page.py $GITHUB_API_URL $GITHUB_API $PER_PAGE $GITHUB_TOKEN >get_page
+        
+        if [ `cat get_page` = $NO_LINK ]; then
+            echo There is only 1 page.
+            echo 1 >last_page
+            cat last_page
+        else
+            echo The last page is ...
+            cat get_page | sed 's/,/\n/g' | sed -n 2p | grep -o '&page=.*>; rel="last"' | sed 's/&page=//g' | sed 's/>; rel="last"//g' >last_page
+            cat last_page
+        fi
+        
+         
+    - name: Get List of PR by GitHub API
+      run: |
+        l=`cat last_page`
+        for i in `seq $l`
+        do
+            echo "pull-${i}"
+            curl -k -s -u :$GITHUB_TOKEN "$GITHUB_API_URL$GITHUB_API&per_page=$PER_PAGE&page=${i}" >>PR_List_all_for_tf
+        done
+        cat PR_List_all_for_tf
+        
+        
+    - name: Extract Items
+      id: tday
+      run: |
+        today=`date '+%Y-%m-%d'`  #メトリクスを取得したい日を設定する。Actionsは「UTC時間」であることに注意。
+        yesterday=`date '+%Y-%m-%d' --date '1 day ago'` #UTC時間を日本時間に変換する為にさらに前日も取得する。
+        echo "::set-output name=DATE::${today}"
+        echo "date: $today"
+        echo "1 days before: $yesterday"
+        
+        cat PR_List_all_for_tf | jq --arg TODAY $today '.[] | select(.closed_at !=null) | select(.closed_at | contains($TODAY))' >extract_items
+        cat PR_List_all_for_tf | jq --arg YDAY $yesterday '.[] | select(.closed_at !=null) | select(.closed_at | contains($YDAY))' >>extract_items
+        cat extract_items | jq -s ".|= .+[]" >all_extract_items
+        cat all_extract_items | jq -r '.[] | [.id,.html_url,.title,.created_at,.closed_at] | @csv' | sed 's/ /@%20@/g' | sed -e 's/\\/\\\\/g' | sed 's/"//g' | sed 's/,/ /g' >items_space_tf    #後続処理のため半角スペースを退避
+        echo "RullRequest ID | URL | Title | Created Date&Time | Closed Date&Time"
+        cat items_space_tf
+        
+        
+    - name: Transform UTC to JST (CSV Format)
+      run: |
+        #AutifyのAPIで取得した時刻はUTCのため日本時間に変換する            
+        while read i1 i2 i3 i4 i5
+        do     
+            item1=${i1}
+            item2=${i2}
+            item3=${i3}
+            item4=${i4}
+            item5=${i5}           
+                                
+            if [ $item4 != null ]; then                
+                #Format Conversion
+                unixtime_created=`date -d $item4 +%s`
+                item4=`date -d @$unixtime_created +"%Y-%m-%dT%H:%M:%S.000Z"`
+                
+                python ./.github/workflows/utc_to_jst.py $item4 >created_jst
+                item4=`cat created_jst`
+            fi
+                
+            if [ $item5 != null ]; then                
+                #Format Conversion
+                unixtime_closed=`date -d $item5 +%s`
+                item5=`date -d @$unixtime_closed +"%Y-%m-%dT%H:%M:%S.000Z"`
+                
+                python ./.github/workflows/utc_to_jst.py $item5 >closed_jst
+                item5=`cat closed_jst`
+            fi
+                
+            echo "$item1,$item2,$item3,$item4,$item5" >>result_jst_tf
+        done <items_space_tf
+        echo "" >>result_jst_tf
+        cat result_jst_tf
+            
+            
+    - name: Transform CSV to JSON
+      run: |
+        echo "Insert CSV Header"
+        sed -e '1i"id","url","title","created_at","closed_at"' result_jst_tf >insert_header_tf
+        cat insert_header_tf
+            
+        echo "Transform CSV to JSON"
+        python ./.github/workflows/csv_to_json.py insert_header_tf
+        cat csv_to_json
+        
+        
+    - name: Extract today's Closed Pullrequest List
+      run: |
+        today=${{ steps.tday.outputs.DATE }}
+        echo "date: $today"
+        cat csv_to_json | jq --arg TODAY $today '.[] | select(.closed_at !=null) | select(.closed_at | contains($TODAY))' | jq -s ".|= .+[]" >jq_closed_pr
+        cat jq_closed_pr
+  
+  
+    - name: Total Today's Closed Pullrequest
+      run: |
+        echo "Today's Closed Pullrequest ID"
+        cat jq_closed_pr | jq '.[].id' >jq_closed_pr_id
+        cat jq_closed_pr_id
+        
+        echo "Total"
+        wc -l jq_closed_pr_id >jq_closed_pr_count       
+        cut -f 1 -d " " jq_closed_pr_count >todays_total
+        cat todays_total
+        
+        
+    - name: Extract Title & URL & Created Date & Closed Date
+      run: |
+        cat jq_closed_pr | jq -r '.[] | [.title,.url,.created_at,.closed_at] | @csv' | sed 's/"//g' >jq_closed_pr_csv 
+        cat jq_closed_pr_csv | sed 's/,/ /g' >jq_closed_pr_sp
+        echo "Title URL Created_at Closed_at"
+        cat jq_closed_pr_sp
+    
+      
+    - name: Plot
+      run: |           
+        while read t u cr cl
+        do     
+            echo $t | sed 's/@%20@/ /g' >escape_retrieve  #半角スペースに戻す
+            t2=`cat escape_retrieve`
+            curl -i -X POST $PULSE_BASEURL$PULSE_API/git_pull_requests/upsert?api_key=$PULSE_API_KEY --data-urlencode "git_pull_request[name]=$t2" --data-urlencode "git_pull_request[url]=${u}" -d "git_pull_request[opened_at]=${cr}&git_pull_request[closed_at]=${cl}"
+        done <jq_closed_pr_sp
+    
+    

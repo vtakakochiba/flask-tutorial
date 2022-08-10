@@ -6,23 +6,29 @@ on:
 
   workflow_dispatch:
 
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     env:
       WORKPLACE: ${{github.workspace}}
       API_KEY: ${{secrets.PULSE_API_KEY}}
       PULSE_BASEURL: https://pulse-metrics.com
       PULSE_API: /api/v1/projects/xx/repositories/xx
       
+      
     steps:
+    
       - uses: actions/checkout@v2
-        
+ 
+ 
       - name: Install cloc
         uses: actions/setup-node@v2
         with:
           node-version: '14'
       - run: sudo npm install cloc -g
+
 
       - name: Count Lines of Code (cloc)
         run: |
@@ -30,9 +36,11 @@ jobs:
              cat get_list_loc.csv           
              cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
              cat loc_sum
-      
+   
+   
       - name: Date & Loc
-        run: |       
+        run: |
+             v=0       
              while read v
              do
                  sum=$v
@@ -40,10 +48,12 @@ jobs:
              echo "`date '+%Y/%-m/%-d'` $sum" >date_and_sum
              echo "" >>date_and_sum
              cat date_and_sum
-             
+  
+  
       - name: Plot
         run: |
              while read d v
              do
-                 curl -X POST $PULSE_BASEURL$PULSE_API/lines_of_code_snapshots/upsert?api_key=$API_KEY -d "lines_of_code_snapshot[target_date]=${d}&lines_of_code_snapshot[value]=${v}"
+                 curl -i -X POST $PULSE_BASEURL$PULSE_API/lines_of_code_snapshots/upsert?api_key=$API_KEY -d "lines_of_code_snapshot[target_date]=${d}&lines_of_code_snapshot[value]=${v}"
              done <date_and_sum
+
