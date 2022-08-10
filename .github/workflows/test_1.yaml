@@ -1,4 +1,4 @@
-name: learn-github-actions2
+name: learn-github-actions(PR-Throughput & Friction)
 on: 
   push:
     branches: [ Studying-Actions ]
