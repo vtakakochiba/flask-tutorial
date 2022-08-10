@@ -1,6 +1,9 @@
 name: Lines of Code
 
 on:
+  push:
+    branches: [ Studying-Actions ]
+
   schedule:
     - cron: '57 14 * * *'
 
