@@ -2,7 +2,7 @@ name: PR-Open & Close Count
 
 on:
   schedule:
-    - cron: '5 15 * * *'
+    - cron: '50 14 * * *'
   workflow_dispatch:
   
   

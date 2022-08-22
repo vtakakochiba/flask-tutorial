@@ -5,7 +5,7 @@ on:
     branches: [ Studying-Actions ]
 
   schedule:
-    - cron: '30 15 * * *'
+    - cron: '50 14 * * *'
   workflow_dispatch:
 
 
