@@ -17,7 +17,7 @@ jobs:
       WORKPLACE: ${{github.workspace}}
       PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
       PULSE_BASEURL: https://pulse-metrics.com
-      PULSE_API: /api/v1/projects/xx/repositories/xx
+      PULSE_API: /api/v1/projects/6/repositories/19
       
 
     steps:

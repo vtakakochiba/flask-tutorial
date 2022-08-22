@@ -12,7 +12,7 @@ jobs:
     env:
       PULSE_API_KEY: ${{secrets.PULSE_API_KEY}}
       PULSE_BASEURL: https://pulse-metrics.com
-      PULSE_API: /api/v1/projects/xx/repositories/xx
+      PULSE_API: /api/v1/projects/6/repositories/19
       GITHUB_TOKEN: ${{ github.token }}
       GITHUB_API: /repos/${{ github.repository }}/pulls?state=all
       PER_PAGE: 100

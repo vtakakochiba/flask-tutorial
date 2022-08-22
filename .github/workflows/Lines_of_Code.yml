@@ -18,7 +18,7 @@ jobs:
       WORKPLACE: ${{github.workspace}}
       API_KEY: ${{secrets.PULSE_API_KEY}}
       PULSE_BASEURL: https://pulse-metrics.com
-      PULSE_API: /api/v1/projects/xx/repositories/xx
+      PULSE_API: /api/v1/projects/6/repositories/19
       
       
     steps:
@@ -35,7 +35,7 @@ jobs:
 
       - name: Count Lines of Code (cloc)
         run: |
-             cloc $WORKPLACE/src --exclude-dir=node_modules --csv --out="get_list_loc.csv"
+             cloc ./general ./thermistor_bokeh --exclude-dir=node_modules --csv --out="get_list_loc.csv"
              cat get_list_loc.csv           
              cut -d ',' -f 5 get_list_loc.csv | sed -n -e \$p >loc_sum
              cat loc_sum
